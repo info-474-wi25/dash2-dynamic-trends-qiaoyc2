@@ -108,6 +108,70 @@ d3.csv("weather.csv").then(data => {
 
     // 7.a: ADD INTERACTIVITY FOR CHART 1
     
-
+    // Create a tooltip div for interactivity
+    const tooltip = d3.select("body")
+        .append("div")
+        .attr("class", "tooltip")
+        .style("position", "absolute")
+        .style("visibility", "hidden")
+        .style("background", "rgba(0, 0, 0, 0.7)")
+        .style("color", "white")
+        .style("padding", "10px")
+        .style("border-radius", "5px")
+        .style("font-size", "12px");
     
+    // Define an update function that redraws the chart based on the selected city
+    function updateChart(selectedCity) {
+        // Filter data for the selected city
+        const filteredData = processedData.filter(d => d.location === selectedCity);
+
+        // Remove existing line and data points
+        svgLine.selectAll(".line").remove();
+        svgLine.selectAll(".data-point").remove();
+
+        // Draw the line for the filtered data using .datum()
+        svgLine.append("path")
+            .datum(filteredData)
+            .attr("class", "line")
+            .attr("d", line)
+            .attr("stroke", "steelblue")
+            .attr("fill", "none");
+
+        // Add circles for each data point for tooltip interactivity
+        svgLine.selectAll(".data-point")
+            .data(filteredData)
+            .enter()
+            .append("circle")
+            .attr("class", "data-point")
+            .attr("cx", d => xScale(d.yearMonth))
+            .attr("cy", d => yScale(d.avgTemp))
+            .attr("r", 5)
+            .style("fill", "steelblue")
+            .style("opacity", 0) // Hide circles until hovered
+            .on("mouseover", function(event, d) {
+                tooltip.style("visibility", "visible")
+                    .html(`<strong>Month:</strong> ${d3.timeFormat("%Y-%m")(d.yearMonth)}<br>
+                           <strong>Avg Temp:</strong> ${d.avgTemp.toFixed(1)}`);
+                d3.select(this).style("opacity", 1);
+            })
+            .on("mousemove", function(event) {
+                tooltip.style("top", (event.pageY + 10) + "px")
+                       .style("left", (event.pageX + 10) + "px");
+            })
+            .on("mouseout", function() {
+                tooltip.style("visibility", "hidden");
+                d3.select(this).style("opacity", 0);
+            });
+    }
+
+    // 7: ADD EVENT LISTENER TO THE EXISTING DROPDOWN
+    // Listen for changes on the select element with id "categorySelect"
+    d3.select("#categorySelect").on("change", function() {
+        const selectedCity = d3.select(this).property("value");
+        updateChart(selectedCity);
+    });
+
+    // Initialize chart with the default city selected in the dropdown
+    const defaultCity = d3.select("#categorySelect").property("value");
+    updateChart(defaultCity);
 });
