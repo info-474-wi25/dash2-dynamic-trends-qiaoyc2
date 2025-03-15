@@ -27,6 +27,25 @@ d3.csv("weather.csv").then(data => {
         d.avgTemp = +d["Data.Temperature.Avg Temp"]; // Convert temp to number
     });
 
+    // Extract unique city names from the CSV (using the "Station.Location" column)
+    const uniqueCities = Array.from(new Set(data.map(d => d["Station.Location"])));
+    uniqueCities.sort(); // Optional: sort alphabetically
+
+    d3.select("#categorySelect")
+    .selectAll("option")
+    .data(uniqueCities)
+    .join("option")
+    .attr("value", d => d)
+    .text(d => d);
+
+    // Populate the second dropdown (city2) with the same options
+    d3.select("#categorySelect2")
+      .selectAll("option")
+      .data(uniqueCities)
+      .join("option")
+      .attr("value", d => d)
+      .text(d => d);
+
     // Group data by Station.Location and Year-Month
     const nestedData = d3.groups(data, d => d["Station.Location"], d => d.yearMonth);
 
@@ -103,7 +122,7 @@ d3.csv("weather.csv").then(data => {
     .attr("x", -height / 2)
     .attr("y", -margin.left + 15)
     .attr("text-anchor", "middle")
-    .text("Average Temperature (°C)");
+    .text("Average Temperature (°F)");
 
 
     // 7.a: ADD INTERACTIVITY FOR CHART 1
@@ -120,29 +139,39 @@ d3.csv("weather.csv").then(data => {
         .style("border-radius", "5px")
         .style("font-size", "12px");
     
-    // Define an update function that redraws the chart based on the selected city
-    function updateChart(selectedCity) {
-        // Filter data for the selected city
-        const filteredData = processedData.filter(d => d.location === selectedCity);
 
+    // Define an update function that redraws the chart based on the selected city
+    function updateChart(city1, city2) {
         // Remove existing line and data points
         svgLine.selectAll(".line").remove();
         svgLine.selectAll(".data-point").remove();
 
-        // Draw the line for the filtered data using .datum()
+        // Filter data for each selected city
+        const dataCity1 = processedData.filter(d => d.location === city1);
+        const dataCity2 = processedData.filter(d => d.location === city2);
+        // Draw the line for city1 (choose a color, e.g., steelblue)
         svgLine.append("path")
-            .datum(filteredData)
+            .datum(dataCity1)
             .attr("class", "line")
             .attr("d", line)
             .attr("stroke", "steelblue")
             .attr("fill", "none");
 
+        // Draw the line for city2 (choose a different color, e.g., orange)
+        svgLine.append("path")
+            .datum(dataCity2)
+            .attr("class", "line")
+            .attr("d", line)
+            .attr("stroke", "orange")
+            .attr("fill", "none");
+
+
         // Add circles for each data point for tooltip interactivity
-        svgLine.selectAll(".data-point")
+        svgLine.selectAll(".data-point.city1")
             .data(filteredData)
             .enter()
             .append("circle")
-            .attr("class", "data-point")
+            .attr("class", ".data-point.city1")
             .attr("cx", d => xScale(d.yearMonth))
             .attr("cy", d => yScale(d.avgTemp))
             .attr("r", 5)
@@ -162,16 +191,86 @@ d3.csv("weather.csv").then(data => {
                 tooltip.style("visibility", "hidden");
                 d3.select(this).style("opacity", 0);
             });
+
+        svgLine.selectAll(".data-point.city2")
+            .data(filteredData)
+            .enter()
+            .append("circle")
+            .attr("class", ".data-point.city2")
+            .attr("cx", d => xScale(d.yearMonth))
+            .attr("cy", d => yScale(d.avgTemp))
+            .attr("r", 5)
+            .style("fill", "steelblue")
+            .style("opacity", 0) // Hide circles until hovered
+            .on("mouseover", function(event, d) {
+                tooltip.style("visibility", "visible")
+                    .html(`<strong>Month:</strong> ${d3.timeFormat("%Y-%m")(d.yearMonth)}<br>
+                           <strong>Avg Temp:</strong> ${d.avgTemp.toFixed(1)}`);
+                d3.select(this).style("opacity", 1);
+            })
+            .on("mousemove", function(event) {
+                tooltip.style("top", (event.pageY + 10) + "px")
+                       .style("left", (event.pageX + 10) + "px");
+            })
+            .on("mouseout", function() {
+                tooltip.style("visibility", "hidden");
+                d3.select(this).style("opacity", 0);
+            });
+
+        // Remove any existing legend so we can draw it fresh each time
+        svgLine.selectAll(".legend").remove();
+
+        // Create a group container for the legend
+        const legend = svgLine.append("g")
+            .attr("class", "legend")
+            .attr("transform", `translate(${width - 150}, 0)`); 
+            // Adjust the translate values (x, y) so it appears where you want
+
+        // Prepare an array describing each city and color
+        const legendData = [
+        { city: city1, color: "steelblue" },
+        { city: city2, color: "orange" }
+        ];
+
+        // For each city, create a small legend item
+        const legendItems = legend.selectAll(".legend-item")
+            .data(legendData)
+            .enter()
+            .append("g")
+            .attr("class", "legend-item")
+            .attr("transform", (d, i) => `translate(0, ${i * 20})`);
+
+        // Draw a small colored square (or circle) to represent each line color
+        legendItems.append("rect")
+            .attr("width", 10)
+            .attr("height", 10)
+            .attr("fill", d => d.color);
+
+        // Add text next to the square that displays the city name
+        legendItems.append("text")
+            .attr("x", 15)
+            .attr("y", 10)  // shift text down so it's vertically centered
+            .style("font-size", "12px")
+            .attr("fill", "black")
+            .text(d => d.city);
     }
 
     // 7: ADD EVENT LISTENER TO THE EXISTING DROPDOWN
     // Listen for changes on the select element with id "categorySelect"
     d3.select("#categorySelect").on("change", function() {
-        const selectedCity = d3.select(this).property("value");
-        updateChart(selectedCity);
+        const selectedCity1 = d3.select(this).property("value");
+        const selectedCity2 = d3.select("#categorySelect2").property("value");
+        updateChart(selectedCity1, selectedCity2);
+    });
+
+    d3.select("#categorySelect2").on("change", function() {
+        const selectedCity1 = d3.select("#categorySelect").property("value");
+        const selectedCity2 = d3.select(this).property("value");
+        updateChart(selectedCity1, selectedCity2);
     });
 
     // Initialize chart with the default city selected in the dropdown
-    const defaultCity = d3.select("#categorySelect").property("value");
-    updateChart(defaultCity);
+    const defaultCity1 = d3.select("#categorySelect").property("value");
+    const defaultCity2 = d3.select("#categorySelect2").property("value");
+    updateChart(defaultCity1, defaultCity2);
 });
